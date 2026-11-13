@@ -167,6 +167,10 @@ tr.hit, tr.hit:hover { background: var(--hit); }
 .diagram .linked { cursor: pointer; }
 .diagram .linked:focus-visible { outline: 2px solid var(--brand-2); }
 .diagram .linked:hover rect, .diagram .linked:focus rect { stroke: #157fcc !important; stroke-width: 2 !important; }
+/* member lines: type names link to their class, member names to their row */
+.diagram .dg-type { fill: #0b5fb0; cursor: pointer; }
+.diagram .dg-member { cursor: pointer; }
+.diagram .dg-type:hover, .diagram .dg-member:hover { text-decoration: underline; fill: #157fcc; }
 
 .hero { padding: 28px 24px 8px; max-width: 900px; }
 .hero h1 { margin: 0 0 8px; font-size: 28px; }

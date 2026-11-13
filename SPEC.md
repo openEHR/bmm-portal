@@ -61,7 +61,8 @@ Generate a static portal from the P_BMM JSON schemas that:
 ### 3.4 Diagrams
 - Class and package diagrams are generated from BMM. They are not drawn by hand.
 - They come from the PlantUML/SVG output of `bmm-publisher`.
-- Class boxes in a diagram are clickable and open the class page.
+- Class boxes in a diagram are clickable and open the class page. In each member line the type
+  names link to their class, and the member name jumps to its row on the class page.
 - In dark mode, a dark variant (`<name>.dark.svg`) is used if one exists. Otherwise the light diagram
   is colour-inverted.
 

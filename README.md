@@ -56,7 +56,8 @@ The tree shows the packages of the selected version only.
 ## Known limitations
 
 - **Diagrams** are the PlantUML SVGs from `bmm-publisher`'s output, matched to classes and packages by
-  file name. The SVG is inlined so each class box links to its page.
+  file name. The SVG is inlined so each class box links to its page, each type name in a member
+  line links to that type, and each member name jumps to its row on the class page.
   - **Dark mode:** a dark variant `<name>.dark.svg` next to a diagram is used when it exists.
     Otherwise the light diagram is colour-inverted.
   - **Missing:** BASE 1.0.4, LANG 1.1.0-bmm3 and RM 1.0.2/1.0.3 have no diagrams.

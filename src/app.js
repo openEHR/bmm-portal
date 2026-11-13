@@ -366,6 +366,37 @@
       <p class="small"><a href="${esc(d.src)}" target="_blank" rel="noopener" class="dg-full">Open full size</a></p></section>`;
   }
 
+  // Make the member lines of a class box clickable: "name : DV_TEXT [1]" or "f( a : String [1] ) : Any [1]".
+  // The member name jumps to its row on the class page, every type name to that type's page.
+  function linkMembers(g, sid, cls, schema) {
+    const SVGNS = 'http://www.w3.org/2000/svg';
+    g.querySelectorAll('text').forEach((t) => {
+      const line = t.textContent;
+      const m = line.match(/^(\s*)([A-Za-z_]\w*)(?=\s*[(:])/);
+      if (!m) return; // class name, stereotype, enum literal, generic parameter box
+      const parts = [];
+      const span = (txt, href, cssClass) => {
+        const ts = document.createElementNS(SVGNS, 'tspan');
+        ts.textContent = txt;
+        if (href) { ts.setAttribute('data-href', href); ts.setAttribute('class', cssClass); }
+        parts.push(ts);
+      };
+      span(m[1]);
+      span(m[2], hrefClass(sid, cls, m[2]), 'dg-member');
+      const rest = line.slice(m[0].length);
+      let last = 0;
+      for (const id of rest.matchAll(/[A-Za-z_]\w*/g)) {
+        const tsid = schema.classes[id[0]] ? schema.id : schema.scope[id[0]];
+        if (!tsid) continue;
+        span(rest.slice(last, id.index));
+        span(id[0], hrefClass(tsid, id[0]), 'dg-type');
+        last = id.index + id[0].length;
+      }
+      span(rest.slice(last));
+      t.replaceChildren(...parts.filter((p) => p.textContent));
+    });
+  }
+
   // Inline the SVG (so boxes can be clicked); strip anything executable.
   function hydrateDiagrams(schema) {
     return Promise.all([...main.querySelectorAll('.diagram[data-src]')].map(async (box) => {
@@ -390,6 +421,7 @@
           g.setAttribute('tabindex', '0');
           g.setAttribute('role', 'link');
           g.setAttribute('aria-label', name);
+          linkMembers(g, sid, name, schema);
         });
         box.replaceChildren(live);
         box.dataset.shown = src;
