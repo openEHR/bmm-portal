@@ -20,6 +20,15 @@ You need Node ≥ 18. There are no dependencies.
 | `DIAGRAM_DIR` | `../bmm-publisher/output/Adoc`            | Pre-rendered SVGs (optional)              |
 | `OUT_DIR`     | `./site`                                  | Output                                    |
 
+## Deploy
+
+`.github/workflows/pages.yml` builds the site from the public openEHR repos on every push to `main`, every night, and on demand. To publish it on GitHub Pages:
+
+1. Under Settings > Pages, set Source to **GitHub Actions**.
+2. Add the repository variable `PAGES_ENABLED` with the value `true`.
+
+Until then the workflow only builds, as a check.
+
 ## Layout
 
 ```

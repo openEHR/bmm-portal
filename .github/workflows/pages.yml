@@ -1,0 +1,75 @@
+name: Build and deploy portal
+
+# Builds the portal from the public openEHR sources and deploys it to GitHub Pages.
+# Deploying needs Pages enabled (Settings > Pages > Source: GitHub Actions) and the
+# repository variable PAGES_ENABLED set to "true". Without it, the build still runs as a check.
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '17 3 * * *' # nightly, so "development" follows the BMM schemas
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Checkout BMM schemas
+        uses: actions/checkout@v4
+        with:
+          repository: openEHR/specifications-ITS-BMM
+          path: deps/specifications-ITS-BMM
+          sparse-checkout: components
+
+      - name: Checkout bmm-publisher diagrams
+        uses: actions/checkout@v4
+        with:
+          repository: openEHR/bmm-publisher
+          path: deps/bmm-publisher
+          sparse-checkout: output/Adoc
+
+      # manifest.json of each spec decides which version is "latest"
+      - { name: Checkout RM manifest, uses: actions/checkout@v4, with: { repository: openEHR/specifications-RM, path: deps/specifications-RM, sparse-checkout: manifest.json, sparse-checkout-cone-mode: false } }
+      - { name: Checkout AM manifest, uses: actions/checkout@v4, with: { repository: openEHR/specifications-AM, path: deps/specifications-AM, sparse-checkout: manifest.json, sparse-checkout-cone-mode: false } }
+      - { name: Checkout BASE manifest, uses: actions/checkout@v4, with: { repository: openEHR/specifications-BASE, path: deps/specifications-BASE, sparse-checkout: manifest.json, sparse-checkout-cone-mode: false } }
+      - { name: Checkout LANG manifest, uses: actions/checkout@v4, with: { repository: openEHR/specifications-LANG, path: deps/specifications-LANG, sparse-checkout: manifest.json, sparse-checkout-cone-mode: false } }
+      - { name: Checkout TERM manifest, uses: actions/checkout@v4, with: { repository: openEHR/specifications-TERM, path: deps/specifications-TERM, sparse-checkout: manifest.json, sparse-checkout-cone-mode: false } }
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build
+        run: npm run build
+        env:
+          BMM_DIR: deps/specifications-ITS-BMM/components
+          SPECS_DIR: deps
+          DIAGRAM_DIR: deps/bmm-publisher/output/Adoc
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    if: vars.PAGES_ENABLED == 'true' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
