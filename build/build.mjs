@@ -6,7 +6,8 @@
 //   BMM_DIR        components dir of specifications-ITS-BMM (default ../specifications-ITS-BMM/components)
 //   DIAGRAM_DIR    bmm-publisher Adoc output with PlantUML SVGs (default ../bmm-publisher/output/Adoc); optional.
 //                  A dark variant next to a diagram (<name>.dark.svg) is used in dark mode.
-//   OUT_DIR        output dir (default ./site)
+//   SPECS_DIR      folder holding specifications-<COMP> checkouts, for manifest.json (default ..)
+//   OUT_DIR       output dir (default ./site)
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -15,6 +16,7 @@ import { fileURLToPath } from 'node:url';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
 const BMM_DIR = path.resolve(process.env.BMM_DIR || path.join(ROOT, '../specifications-ITS-BMM/components'));
+const SPECS_DIR = path.resolve(process.env.SPECS_DIR || path.join(ROOT, '..'));
 const OUT = path.resolve(process.env.OUT_DIR || path.join(ROOT, 'site'));
 const SRC = path.join(ROOT, 'src');
 const DIAGRAM_DIR = path.resolve(process.env.DIAGRAM_DIR || path.join(ROOT, '../bmm-publisher/output/Adoc'));
@@ -387,10 +389,30 @@ for (const s of schemas.values()) {
   if (!byComp.has(s.component)) byComp.set(s.component, []);
   byComp.get(s.component).push(s);
 }
+// Published releases come from each spec repo's manifest.json: a release with a date is published.
+//   development = newest BMM schema (plain version, no suffix)
+//   latest      = newest BMM schema whose version is a published release (falls back to development)
+function publishedReleases(component) {
+  const file = path.join(SPECS_DIR, `specifications-${component}`, 'manifest.json');
+  if (!fs.existsSync(file)) { log(`WARN no ${file}; latest = development for ${component}`); return null; }
+  const m = JSON.parse(fs.readFileSync(file, 'utf8'));
+  const norm = (v) => String(v).split('.').concat(['0', '0']).slice(0, 3).join('.'); // "1.4" -> "1.4.0"
+  return new Set((m.releases || []).filter((r) => r.date).map((r) => norm(r.id)));
+}
 for (const [component, list] of byComp) {
   list.sort((a, b) => cmp(b.release, a.release));
-  const latest = list.find((s) => !s.release.includes('-')) || list[0];
-  index.components.push({ name: component, latest: latest.release, releases: list.map((s) => ({ id: s.id, release: s.release })) });
+  const dev = list.find((s) => !s.release.includes('-')) || list[0];
+  const published = publishedReleases(component);
+  const latest = (published && list.find((s) => !s.release.includes('-') && published.has(s.release))) || dev;
+  const rest = list.filter((s) => s !== dev && s !== latest);
+  index.components.push({
+    name: component,
+    development: dev.id,
+    latest: latest.id,
+    // switcher order: development, latest, then older versions (newest first)
+    releases: [dev, ...(latest !== dev ? [latest] : []), ...rest].map((s) => ({ id: s.id, release: s.release, published: !!published?.has(s.release) })),
+  });
+  log(`${component}: development ${dev.release}, latest ${latest.release}${rest.length ? `, older ${rest.map((s) => s.release).join(' ')}` : ''}`);
 }
 const ORDER = ['RM', 'AM', 'BASE', 'LANG', 'TERM'];
 index.components.sort((a, b) => (ORDER.indexOf(a.name) + 1 || 99) - (ORDER.indexOf(b.name) + 1 || 99) || a.name.localeCompare(b.name));

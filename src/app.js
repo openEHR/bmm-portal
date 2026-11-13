@@ -26,19 +26,31 @@
     return schemaCache.get(id);
   }
   const comp = (name) => INDEX.components.find((c) => c.name.toLowerCase() === String(name).toLowerCase());
-  const schemaIdFor = (component, release) => {
+  // Versions: each component has development (default), latest (newest published) and older releases.
+  // URLs use the alias where one applies: #/RM/development/..., #/RM/latest/..., #/RM/1.0.4/...
+  const schemaIdFor = (component, v) => {
     const c = comp(component);
     if (!c) return null;
-    const rel = release === 'latest' || !release ? c.latest : release;
-    return c.releases.find((r) => r.release === rel)?.id || null;
+    if (!v || v === 'development') return c.development;
+    if (v === 'latest') return c.latest;
+    return c.releases.find((r) => r.release === v)?.id || null;
   };
-  const isLatest = (sid) => { const s = INDEX.schemas[sid]; return comp(s.component)?.latest === s.release; };
+  const aliasOf = (sid) => {
+    const s = INDEX.schemas[sid];
+    const cc = comp(s.component);
+    return sid === cc.development ? 'development' : sid === cc.latest ? 'latest' : s.release;
+  };
+  const versionText = (sid) => { const a = aliasOf(sid); const r = INDEX.schemas[sid].release; return a === r ? r : `${a} ${r}`; };
+  const selected = {}; // component -> selected schema id (not persisted: default is always development)
+  const selectedSid = (name) => selected[name] || comp(name).development;
+  const isSelected = (sid) => selectedSid(INDEX.schemas[sid].component) === sid;
+  let currentComp = null;
 
   // ------------------------------------------------------------ links
-  const hrefSchema = (sid) => { const s = INDEX.schemas[sid]; return `#/${s.component}/${s.release}`; };
+  const hrefSchema = (sid) => { const s = INDEX.schemas[sid]; return `#/${s.component}/${aliasOf(sid)}`; };
   const hrefClass = (sid, name, member) => `${hrefSchema(sid)}/class/${encodeURIComponent(name)}${member ? '/' + encodeURIComponent(member) : ''}`;
   const hrefPkg = (sid, p) => `${hrefSchema(sid)}/package/${encodeURIComponent(p)}`;
-  const label = (sid) => { const s = INDEX.schemas[sid]; return `${s.component} ${s.release}`; };
+  const label = (sid) => { const s = INDEX.schemas[sid]; return `${s.component} ${aliasOf(sid)}`; };
 
   function classLink(sid, name, text) {
     return `<a href="${hrefClass(sid, name)}" class="cls">${esc(text ?? name)}</a>`;
@@ -124,28 +136,29 @@
   }
   const countClasses = (n) => n.classes.length + n.packages.reduce((a, p) => a + countClasses(p), 0);
 
+  const compLis = new Map();
   function buildTree() {
     tree.innerHTML = '';
     for (const c of INDEX.components) {
       const li = treeItem({
-        text: c.name, href: `#/${c.name}/${c.latest}`, icon: '◆', kind: 'comp', expandable: true,
-        onExpand: (ul) => {
-          for (const r of c.releases) {
-            const s = INDEX.schemas[r.id];
-            const rli = treeItem({
-              text: r.release + (r.release === c.latest ? '  · latest' : ''), href: hrefSchema(r.id), icon: '⎇', kind: 'rel', expandable: true,
-              title: `${s.classCount} classes${s.lifecycle ? ' · ' + s.lifecycle : ''}`,
-              onExpand: (ul2) => s.packages.forEach((p) => ul2.appendChild(pkgItem(r.id, p))),
-            });
-            rli._key = `${r.id}|schema`;
-            ul.appendChild(rli);
-          }
-        },
+        text: c.name, href: hrefSchema(selectedSid(c.name)), icon: '◆', kind: 'comp', expandable: true,
+        onExpand: (ul) => { const sid = selectedSid(c.name); INDEX.schemas[sid].packages.forEach((p) => ul.appendChild(pkgItem(sid, p))); },
       });
       li._key = `comp|${c.name}`;
+      compLis.set(c.name, li);
       tree.appendChild(li);
     }
     tree.querySelectorAll('li')[0]?.querySelector('a')?.setAttribute('tabindex', '0');
+  }
+
+  // Re-fill one component's subtree after its version changed.
+  function refreshComponent(name) {
+    const li = compLis.get(name);
+    if (!li) return;
+    li.querySelector('ul').innerHTML = '';
+    li._filled = false;
+    li.querySelector(':scope > .row > a').setAttribute('href', hrefSchema(selectedSid(name)));
+    if (li.getAttribute('aria-expanded') === 'true') li._expand(true);
   }
 
   // Expand the path to the current page and mark it.
@@ -154,13 +167,10 @@
     if (!sid) return;
     const s = INDEX.schemas[sid];
     const find = (ul, key) => [...ul.children].find((li) => li._key === key || li.dataset.key === key);
-    const compLi = find(tree, `comp|${s.component}`);
+    const compLi = compLis.get(s.component);
     if (!compLi) return;
     compLi._expand(true);
-    const relLi = find(compLi.querySelector('ul'), `${sid}|schema`);
-    if (!relLi) return;
-    relLi._expand(true);
-    let cur = relLi;
+    let cur = compLi;
     if (pkgPath) {
       for (const seg of splitPkg(sid, pkgPath)) {
         const li = find(cur.querySelector('ul'), `${sid}|pkg|${seg.path}`);
@@ -177,6 +187,38 @@
     a.setAttribute('aria-current', 'page');
     a.scrollIntoView({ block: 'nearest' });
   }
+
+  // ------------------------------------------------------------ version switcher (bottom left)
+  const versionSel = $('#versionSel');
+  const versionComp = $('#versionComp');
+  function updateVersionBar() {
+    if (!currentComp) {
+      versionComp.textContent = 'Version';
+      versionSel.innerHTML = '<option>open a specification</option>';
+      versionSel.disabled = true;
+      return;
+    }
+    const cc = comp(currentComp);
+    const cur = selectedSid(currentComp);
+    versionComp.textContent = `${cc.name} version`;
+    versionSel.disabled = false;
+    versionSel.innerHTML = cc.releases.map((r) => {
+      const a = aliasOf(r.id);
+      const text = a === r.release ? r.release : `${a} (${r.release})`;
+      return `<option value="${r.id}"${r.id === cur ? ' selected' : ''}>${esc(text)}</option>`;
+    }).join('');
+  }
+  versionSel.addEventListener('change', () => {
+    const sid = versionSel.value;
+    const s = INDEX.schemas[sid];
+    selected[s.component] = sid;
+    refreshComponent(s.component);
+    // stay on the same class / package if the other version has it
+    const [, , kind, ...rest] = location.hash.replace(/^#\/?/, '').split('/').map(decodeURIComponent);
+    if (kind === 'class' && s.kinds[rest[0]]) location.hash = hrefClass(sid, rest[0], rest[1]);
+    else if (kind === 'package' && findPkg(sid, rest.join('/'))) location.hash = hrefPkg(sid, rest.join('/'));
+    else location.hash = hrefSchema(sid);
+  });
 
   // Arrow-key navigation in the tree.
   tree.addEventListener('keydown', (e) => {
@@ -207,7 +249,7 @@
 
   function crumbs(sid, pkgPath, tail) {
     const s = INDEX.schemas[sid];
-    const parts = [`<a href="#/">Home</a>`, `<a href="#/${s.component}/${c(s.component).latest}">${esc(s.component)}</a>`, `<a href="${hrefSchema(sid)}">${esc(s.release)}</a>`];
+    const parts = [`<a href="#/">Home</a>`, `<a href="${hrefSchema(sid)}">${esc(s.component)} <span class="crumb-ver">${esc(versionText(sid))}</span></a>`];
     if (pkgPath) {
       const segs = splitPkg(sid, pkgPath);
       segs.forEach((seg) => parts.push(`<a href="${hrefPkg(sid, seg.path)}">${esc(seg.name)}</a>`));
@@ -215,7 +257,6 @@
     if (tail) parts.push(`<span>${esc(tail)}</span>`);
     return `<nav class="crumbs" aria-label="Breadcrumb">${parts.join('<span class="sep">/</span>')}</nav>`;
   }
-  const c = comp;
 
   // Split a dotted package path into tree nodes (top-level names can contain dots).
   function splitPkg(sid, p) {
@@ -233,18 +274,9 @@
   }
   const findPkg = (sid, p) => { const segs = splitPkg(sid, p); const last = segs[segs.length - 1]; return last && last.path === p ? last : null; };
 
-  function releaseSwitcher(sid, className) {
-    const s = INDEX.schemas[sid];
-    const cc = c(s.component);
-    const opts = cc.releases.map((r) => {
-      const has = !className || INDEX.schemas[r.id].kinds[className];
-      return `<option value="${r.id}"${r.id === sid ? ' selected' : ''}${has ? '' : ' disabled'}>${esc(r.release)}${r.release === cc.latest ? ' (latest)' : ''}${has ? '' : ' — not present'}</option>`;
-    }).join('');
-    return `<label class="relsw">Release <select data-relsw="${esc(className || '')}">${opts}</select></label>`;
-  }
+  const versionBadge = (sid) => `<span class="badge ver" title="Switch versions in the bottom-left corner">${esc(versionText(sid))}</span>`;
+
   main.addEventListener('change', (e) => {
-    const sel = e.target.closest('[data-relsw]');
-    if (sel) location.hash = sel.dataset.relsw ? hrefClass(sel.value, sel.dataset.relsw) : hrefSchema(sel.value);
     const inh = e.target.closest('#showInherited');
     if (inh) {
       main.querySelectorAll('tr.inherited').forEach((tr) => { tr.hidden = !inh.checked; });
@@ -255,18 +287,19 @@
   function viewHome() {
     document.title = 'openEHR BMM Portal';
     const cards = INDEX.components.map((cc) => {
-      const s = INDEX.schemas[cc.releases.find((r) => r.release === cc.latest).id];
-      return `<a class="card" href="#/${cc.name}/${cc.latest}">
-        <div class="card-h"><span class="card-name">${esc(cc.name)}</span><span class="badge">${esc(cc.latest)}</span></div>
+      const s = INDEX.schemas[cc.development];
+      const latest = INDEX.schemas[cc.latest];
+      return `<a class="card" href="${hrefSchema(cc.development)}">
+        <div class="card-h"><span class="card-name">${esc(cc.name)}</span><span class="badge">development ${esc(s.release)}</span></div>
         <p>${esc(firstSentence(s.description) || '')}</p>
-        <div class="card-f">${s.classCount} classes · ${cc.releases.length} release${cc.releases.length > 1 ? 's' : ''}</div></a>`;
+        <div class="card-f">${s.classCount} classes · latest ${esc(latest.release)} · ${cc.releases.length} version${cc.releases.length > 1 ? 's' : ''}</div></a>`;
     }).join('');
     main.innerHTML = `
       <section class="hero">
         <h1>openEHR BMM Portal</h1>
         <p>Browse the openEHR models (Reference Model, Archetype Model, BASE, LANG and TERM), generated directly from the published
         <a href="https://github.com/openEHR/specifications-ITS-BMM" rel="noopener">BMM schemas</a>.
-        Pick a component below, browse the package tree on the left, or press <kbd>/</kbd> to search.</p>
+        Pick a specification below, browse the package tree on the left, or press <kbd>/</kbd> to search. Pages show the development version by default; switch to latest or an older version in the bottom-left corner.</p>
       </section>
       <div class="cards">${cards}</div>
       <p class="muted small">Generated ${esc(new Date(INDEX.generated).toLocaleString())}.</p>`;
@@ -285,7 +318,7 @@
       + n.packages.map((p) => pkgRow(p, depth + 1)).join('');
     main.innerHTML = `
       <header class="page-h">${crumbs(sid)}
-        <div class="title-row"><h1>${esc(schema.component)} <span class="light">${esc(schema.release)}</span></h1>${releaseSwitcher(sid)}</div>
+        <div class="title-row"><h1>${esc(schema.component)}</h1>${versionBadge(sid)}</div>
       </header>
       <div class="content">
         ${m.description ? `<section class="doc">${docHtml(m.description, schema)}</section>` : ''}
@@ -306,7 +339,7 @@
     const classes = [...node.classes].sort().map((n) => schema.classes[n]).filter(Boolean);
     main.innerHTML = `
       <header class="page-h">${crumbs(sid, p)}
-        <div class="title-row"><h1><span class="ic ic-pkg big" aria-hidden="true">▣</span>${esc(node.name)}</h1>${releaseSwitcher(sid)}</div>
+        <div class="title-row"><h1><span class="ic ic-pkg big" aria-hidden="true">▣</span>${esc(node.name)}</h1>${versionBadge(sid)}</div>
         <div class="sub">Package <code>${esc(node.path)}</code></div>
       </header>
       <div class="content">
@@ -453,7 +486,7 @@
       <header class="page-h">${crumbs(sid, k.package, null)}
         <div class="title-row"><h1><span class="ic ic-${k.kind[0]} big" aria-hidden="true">${KIND_ICON[k.kind[0]]}</span>${esc(displayName(k))}</h1>
           <div class="badges">${k.kind !== 'class' ? `<span class="badge">${esc(KIND_LABEL[k.kind])}</span>` : ''}${k.generics.length ? '<span class="badge">generic</span>' : ''}</div>
-          ${releaseSwitcher(sid, k.name)}</div>
+          ${versionBadge(sid)}</div>
       </header>
       <div class="content">
         ${k.doc ? `<section class="doc">${docHtml(k.doc, schema)}</section>` : ''}
@@ -483,17 +516,20 @@
   async function route() {
     const parts = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean).map(decodeURIComponent);
     try {
-      if (!parts.length) { viewHome(); revealInTree(null); }
+      if (!parts.length) { currentComp = null; updateVersionBar(); viewHome(); revealInTree(null); }
       else {
         const [component, release, kind, ...rest] = parts;
         const cc = comp(component);
         if (!cc) return notFound(`Unknown component ${component}.`);
-        if (!release || release === 'latest') {
-          location.replace(`#/${cc.name}/${cc.latest}${kind ? '/' + [kind, ...rest].map(encodeURIComponent).join('/') : ''}`);
+        if (!release) {
+          location.replace(`#/${cc.name}/development${kind ? '/' + [kind, ...rest].map(encodeURIComponent).join('/') : ''}`);
           return;
         }
         const sid = schemaIdFor(cc.name, release);
-        if (!sid) return notFound(`Release ${release} of ${cc.name} not found.`);
+        if (!sid) return notFound(`Version ${release} of ${cc.name} not found.`);
+        currentComp = cc.name;
+        if (selectedSid(cc.name) !== sid) { selected[cc.name] = sid; refreshComponent(cc.name); }
+        updateVersionBar();
         if (!kind) await viewSchema(sid);
         else if (kind === 'class') await viewClass(sid, rest[0], rest[1]);
         else if (kind === 'package') await viewPackage(sid, rest.join('/'));
@@ -522,7 +558,7 @@
     for (const e of INDEX.search) {
       const [name, k, sid] = e;
       if (kind && k !== kind) continue;
-      if (latestOnly.checked && !isLatest(sid)) continue;
+      if (latestOnly.checked && !isSelected(sid)) continue;
       const nl = name.toLowerCase();
       let s;
       if (nl === q) s = 0; else if (nl.startsWith(q)) s = 1; else if (nl.includes(q)) s = 2; else continue;

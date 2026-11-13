@@ -4,7 +4,7 @@ A static web portal for browsing the openEHR models. Its **only source is the op
 schemas**, so the portal always matches the published models and needs no separate modelling tool.
 
 Status: draft, 2026-11-13. A first implementation is in this repository (see README.md). It covers
-§3.1–3.6 except the specification links in §3.2. It shows all releases (OQ2), uses a separate Node
+§3.1–3.6 except the specification links in §3.2. It shows development, latest and all older versions (OQ2), uses a separate Node
 generator (OQ1), and leaves out components that have no BMM schema for now (OQ4).
 
 ## 1. Goal
@@ -37,8 +37,10 @@ Generate a static portal from the P_BMM JSON schemas that:
 ### 3.1 Navigation tree
 - The root nodes are the components (AM, BASE, LANG, RM, TERM). Under each is the release, then
   the BMM package hierarchy (`org.openehr.rm.common` → `archetyped` → classes).
-- A release switcher defaults to the latest release of each component, and older releases stay
-  available.
+- The tree shows only the components with their packages, and no versions. A version switcher in
+  the bottom-left corner changes the version of the specification currently open: **development**
+  (default), **latest** (newest published release, taken from the spec repo's `manifest.json`) and
+  the older versions. Switching keeps the current class or package open if the other version has it.
 - The tree can be collapsed, can be used with the keyboard, and highlights the current page.
 
 ### 3.2 Class page
@@ -70,9 +72,10 @@ Generate a static portal from the P_BMM JSON schemas that:
 
 ### 3.6 URLs
 - Every page has a stable, shareable URL, for example
-  `#/RM/1.2.0/class/ARCHETYPED` and `#/RM/1.2.0/package/org.openehr.rm.common.archetyped`.
-- `#/RM/latest/...` resolves to the newest release.
-- `#/RM/1.2.0/class/ELEMENT/null_flavour` opens the class and highlights that member.
+  `#/RM/development/class/ARCHETYPED` and `#/RM/latest/package/org.openehr.rm.common.archetyped`.
+- `development` and `latest` stay in the URL, so a link always shows the current version of that
+  kind. Older versions use their number, e.g. `#/RM/1.0.4/...`. `#/RM` opens development.
+- `#/RM/development/class/ELEMENT/null_flavour` opens the class and highlights that member.
 
 ## 4. Non-functional requirements
 
@@ -95,7 +98,7 @@ Generate a static portal from the P_BMM JSON schemas that:
 
 1. Generator stack: extend `bmm-publisher` (PHP, which already parses BMM and renders the SVGs) or
    keep the separate small Node generator in this repository?
-2. Should the portal show all releases, or only the latest release plus development?
+2. Should all older versions stay in the switcher, or only development and latest?
 3. Should the specification links (the "Specification" link on each class) come from
    `bmm-publisher`'s per-type JSON, or from a mapping maintained separately?
 4. Should the components without BMM (CDS, PROC, SM) get BMM schemas?

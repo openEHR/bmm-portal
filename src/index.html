@@ -29,7 +29,7 @@
       <label for="searchInput" class="sr-only">Search</label>
       <input id="searchInput" type="search" placeholder="Search classes, properties, functions…  ( / )" autocomplete="off"
              role="combobox" aria-expanded="false" aria-controls="searchResults" aria-autocomplete="list">
-      <label class="scope"><input type="checkbox" id="searchLatest" checked> latest only</label>
+      <label class="scope"><input type="checkbox" id="searchLatest" checked> selected versions</label>
       <ul id="searchResults" role="listbox" hidden></ul>
     </div>
     <button class="icon-btn" id="themeToggle" aria-label="Toggle dark mode" title="Toggle dark mode">◐</button>
@@ -37,8 +37,14 @@
 
   <div class="layout">
     <nav id="nav" class="nav" aria-label="Model navigation">
-      <div class="nav-head">Packages</div>
-      <ul id="tree" class="tree" role="tree" aria-label="Components, releases and packages"></ul>
+      <div class="nav-head">Specifications</div>
+      <div class="nav-scroll">
+        <ul id="tree" class="tree" role="tree" aria-label="Specifications and packages"></ul>
+      </div>
+      <div class="nav-foot">
+        <label for="versionSel" id="versionComp">Version</label>
+        <select id="versionSel"></select>
+      </div>
     </nav>
     <main id="main" class="main" tabindex="-1">
       <p class="loading">Loading…</p>
