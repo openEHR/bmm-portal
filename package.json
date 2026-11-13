@@ -1,0 +1,14 @@
+{
+  "name": "openehr-bmm-portal",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Static browsing portal for the openEHR models, generated from the BMM schemas.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "build": "node build/build.mjs",
+    "serve": "node build/serve.mjs 47913",
+    "start": "node build/build.mjs && node build/serve.mjs 47913"
+  }
+}

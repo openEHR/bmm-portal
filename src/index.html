@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>openEHR BMM Portal</title>
+  <link rel="stylesheet" href="style.css">
+  <script>
+    try { const t = localStorage.getItem('bmm-theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+  </script>
+</head>
+<body>
+  <header class="topbar">
+    <button class="icon-btn nav-toggle" id="navToggle" aria-label="Toggle navigation" aria-controls="nav" aria-expanded="true">☰</button>
+    <a class="brand" href="#/" title="Home">
+      <span class="brand-mark" aria-hidden="true">◆</span>
+      <span class="brand-text">openEHR <strong>BMM Portal</strong></span>
+    </a>
+    <div class="search" role="search">
+      <label for="searchKind" class="sr-only">Search filter</label>
+      <select id="searchKind">
+        <option value="">All</option>
+        <option value="class">Classes</option>
+        <option value="enum">Enumerations</option>
+        <option value="property">Properties</option>
+        <option value="function">Functions</option>
+        <option value="package">Packages</option>
+      </select>
+      <label for="searchInput" class="sr-only">Search</label>
+      <input id="searchInput" type="search" placeholder="Search classes, properties, functions…  ( / )" autocomplete="off"
+             role="combobox" aria-expanded="false" aria-controls="searchResults" aria-autocomplete="list">
+      <label class="scope"><input type="checkbox" id="searchLatest" checked> latest only</label>
+      <ul id="searchResults" role="listbox" hidden></ul>
+    </div>
+    <button class="icon-btn" id="themeToggle" aria-label="Toggle dark mode" title="Toggle dark mode">◐</button>
+  </header>
+
+  <div class="layout">
+    <nav id="nav" class="nav" aria-label="Model navigation">
+      <div class="nav-head">Packages</div>
+      <ul id="tree" class="tree" role="tree" aria-label="Components, releases and packages"></ul>
+    </nav>
+    <main id="main" class="main" tabindex="-1">
+      <p class="loading">Loading…</p>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
